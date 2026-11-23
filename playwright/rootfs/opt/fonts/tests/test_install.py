@@ -1,4 +1,5 @@
 import hashlib
+import http.client
 import io
 import json
 
@@ -67,6 +68,16 @@ def test_download_failure_does_not_raise(tmp_path):
     summary = install.install(["ko", "ja"], tmp_path, MANIFEST, Fetcher({"https://x/JP-Regular.otf": FONT_B}))
     assert summary["failed"] == ["KR-Regular.otf"]
     assert summary["installed"] == ["JP-Regular.otf"]
+
+
+def test_connection_dropped_mid_download_does_not_raise(tmp_path):
+    class Dropped(io.BytesIO):
+        def read(self, *_):
+            raise http.client.IncompleteRead(b"partial")
+
+    summary = install.install(["ko"], tmp_path, MANIFEST, lambda url: Dropped())
+    assert summary["failed"] == ["KR-Regular.otf"]
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_deselected_language_is_removed(tmp_path):

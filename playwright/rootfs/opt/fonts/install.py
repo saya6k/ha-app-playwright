@@ -7,6 +7,7 @@ still starts. Standard library only (runs with the system python3).
 """
 
 import hashlib
+import http.client
 import json
 import os
 import subprocess
@@ -55,7 +56,7 @@ def _download(entry: dict, font_dir: Path, fetch) -> bool:
             return False
         os.replace(tmp, font_dir / entry["file"])
         return True
-    except OSError as e:
+    except (OSError, http.client.HTTPException) as e:
         print(f"[fonts] download failed for {entry['file']}: {e}", file=sys.stderr)
         return False
     finally:
