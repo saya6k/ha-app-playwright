@@ -16,10 +16,12 @@ from mcp.server.fastmcp.server import StreamableHTTPASGIApp
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.routing import Route
 
 import options
 from core import Gate
+from guard import RejectBrowserOrigin
 from upstream import StdioUpstream
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -59,7 +61,8 @@ async def lifespan(_app):
     await upstream.close()
 
 
-app = Starlette(routes=[Route("/mcp", endpoint=StreamableHTTPASGIApp(manager))], lifespan=lifespan)
+app = Starlette(routes=[Route("/mcp", endpoint=StreamableHTTPASGIApp(manager))], lifespan=lifespan,
+                middleware=[Middleware(RejectBrowserOrigin)])
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8099, log_level="warning")

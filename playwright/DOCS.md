@@ -34,7 +34,9 @@ hand. The app's log prints the URL to use when the announcement fails; it
 has the form `http://<app hostname>:8099/mcp`.
 
 No port mapping is needed. Map port 8099 only for an MCP client outside the
-Home Assistant host.
+Home Assistant host. The endpoint has **no authentication**: anyone who can
+reach a mapped port can drive the browser and its logged-in sites, so map
+it only on a network you trust.
 
 Home Assistant stops waiting for a tool after **30 seconds**. Page loads time
 out after 20 s and other actions after 5 s, so a slow step fails with a
@@ -148,6 +150,9 @@ Read this before you log in to anything in this browser.
 - The browser's remote-control port and the VNC server listen on the
   loopback interface only. The panel is reached only through Ingress, and the
   Supervisor token is not passed to the browser.
+- The MCP endpoint has no authentication. It refuses requests that carry an
+  `Origin` header, so web pages (including ones in this browser) cannot
+  call it.
 
 ## Troubleshooting
 

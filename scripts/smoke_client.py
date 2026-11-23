@@ -195,6 +195,11 @@ def main():
     names = {t["name"] for t in tools}
     check("tools/list via a non-localhost Host header", {"browser_navigate", "browser_click",
                                                           "browser_file_upload"} <= names, str(sorted(names)))
+    conn = http.client.HTTPConnection("127.0.0.1", 8099, timeout=10)
+    conn.request("POST", "/mcp", "{}", {"Origin": "http://evil.example", "Content-Type": "application/json"})
+    code = conn.getresponse().status
+    conn.close()
+    check("MCP endpoint refuses requests from web pages (Origin header)", code == 403, str(code))
     snap = next((t for t in tools if t["name"] == "browser_snapshot"), {})
     check("snapshot description mentions the default depth", "depth=6" in snap.get("description", ""))
 
