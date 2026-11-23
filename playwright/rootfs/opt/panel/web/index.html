@@ -62,12 +62,19 @@ function wsUrl() {
 function connect() {
   clearTimeout(retry);
   if (rfb) { rfb.disconnect(); }
-  rfb = new RFB($('screen'), wsUrl(), { shared: true });
+  const self = new RFB($('screen'), wsUrl(), { shared: true });
+  rfb = self;
   rfb.scaleViewport = true;
   rfb.resizeSession = false;
   rfb.focusOnClick = true;
   rfb.addEventListener('connect', () => say('Connected. Click the screen to type; use the box above for Korean text or passwords.'));
-  rfb.addEventListener('disconnect', () => { say('Disconnected — retrying…'); retry = setTimeout(connect, 2000); });
+  rfb.addEventListener('disconnect', () => {
+    // A replaced connection still fires this after rfb.disconnect(); retrying
+    // for it would tear down the new one and loop.
+    if (rfb !== self) { return; }
+    say('Disconnected — retrying…');
+    retry = setTimeout(connect, 2000);
+  });
 }
 
 async function refreshStatus() {
