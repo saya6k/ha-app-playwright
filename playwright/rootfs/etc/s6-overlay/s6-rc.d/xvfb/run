@@ -1,0 +1,17 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+# Virtual display :99 for the headful Chromium (the login panel shows it).
+set -euo pipefail
+
+# Read app options straight from /data/options.json (Supervisor writes it;
+# bashio::config needs the Supervisor API, which bare docker runs lack).
+opt() { jq -r --arg k "$1" '.[$k] // empty' /data/options.json 2>/dev/null || true; }
+
+VIEWPORT="$(opt viewport)"
+[[ "${VIEWPORT}" =~ ^[0-9]{3,4}x[0-9]{3,4}$ ]] || VIEWPORT=1280x800
+
+# A previous run's lock survives a container restart and blocks :99.
+rm -f /tmp/.X99-lock /tmp/.X11-unix/X99
+
+echo "[xvfb] starting :99 (${VIEWPORT}) …"
+exec Xvfb :99 -screen 0 "${VIEWPORT}x24" -nolisten tcp

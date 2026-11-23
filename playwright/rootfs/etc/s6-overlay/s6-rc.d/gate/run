@@ -1,0 +1,8 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+set -euo pipefail
+
+mkdir -p /share/playwright
+echo "[gate] starting on 0.0.0.0:8099 (/mcp) …"
+cd /opt/gate
+exec /opt/venv/bin/python3 server.py

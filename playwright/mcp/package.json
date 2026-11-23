@@ -1,0 +1,8 @@
+{
+  "name": "ha-app-playwright-mcp",
+  "private": true,
+  "description": "Pinned Playwright MCP for the Browser app (installed in the image build stage).",
+  "dependencies": {
+    "@playwright/mcp": "0.0.86"
+  }
+}
