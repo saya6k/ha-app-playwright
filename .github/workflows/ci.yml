@@ -105,7 +105,7 @@ jobs:
             playwright/DOCS.md
 
   unit-tests:
-    name: Gate unit tests
+    name: Gate and panel unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -115,7 +115,7 @@ jobs:
       - name: Install test deps
         run: pip install pytest -r playwright/rootfs/opt/gate/requirements.txt
       - name: pytest
-        run: python -m pytest playwright/rootfs/opt/gate -q
+        run: python -m pytest playwright/rootfs/opt/gate playwright/rootfs/opt/panel -q
 
   build-test:
     name: build test (${{ matrix.arch }})

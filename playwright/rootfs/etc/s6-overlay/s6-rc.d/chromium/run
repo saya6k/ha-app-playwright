@@ -48,4 +48,22 @@ if [ -n "${PROXY}" ]; then
 fi
 
 echo "[chromium] starting (CDP 127.0.0.1:9222, ${VIEWPORT}, ${LANGUAGE}) …"
-exec env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN DISPLAY=:99 chromium-browser "${FLAGS[@]}" about:blank
+env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN DISPLAY=:99 chromium-browser "${FLAGS[@]}" about:blank &
+CHROME_PID=$!
+
+# Not exec'd: s6's SIGTERM must reach this script, so Chromium is closed via
+# CDP and writes cookies to disk. A plain SIGTERM loses logins made in the
+# last ~30 s (verified in the image).
+graceful_stop() {
+  echo "[chromium] closing via CDP …"
+  node /opt/chromium/close.mjs || true
+  for _ in $(seq 1 40); do
+    kill -0 "${CHROME_PID}" 2>/dev/null || exit 0
+    sleep 0.25
+  done
+  kill -TERM "${CHROME_PID}" 2>/dev/null || true
+  exit 0
+}
+trap graceful_stop TERM INT
+
+wait "${CHROME_PID}"

@@ -13,6 +13,11 @@ arch:
   - amd64
 init: false
 startup: services
+ingress: true
+ingress_port: 8098
+panel_icon: mdi:web
+panel_title: Browser
+panel_admin: true
 map:
   - share:rw
 discovery:

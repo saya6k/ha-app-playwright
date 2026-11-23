@@ -19,6 +19,17 @@ RUN python3 -m venv /opt/venv \
  && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt \
  && /opt/venv/bin/pip uninstall -y pip
 
+# ---- Panel assets (novnc only in this stage) -------------------------------
+# Alpine's websockify depends on numpy, openblas, requests, redis and jwcrypto
+# (~60 MB). The panel only proxies one websocket and serves files, which works
+# without them (numpy just speeds up unmasking keyboard/mouse frames), so only
+# the pure-Python package and noVNC's static files are copied.
+FROM ${BUILD_FROM} AS panel-build
+RUN apk add --no-cache novnc \
+ && mkdir -p /out/vendor \
+ && cp -r "$(python3 -c 'import websockify, os; print(os.path.dirname(websockify.__file__))')" /out/vendor/ \
+ && cp -r /usr/share/novnc /out/novnc
+
 # ---- App -------------------------------------------------------------------
 FROM ${BUILD_FROM}
 
@@ -31,11 +42,16 @@ LABEL io.hass.type="app"
 # libGL → libgallium → libLLVM at load time (Phase 0 PoC).
 RUN apk add --no-cache chromium nodejs python3 xvfb
 
+# Ingress panel: x11vnc shares :99 over VNC on loopback.
+RUN apk add --no-cache x11vnc
+
 COPY --from=mcp-build /opt/playwright-mcp /opt/playwright-mcp
 COPY --from=gate-build /opt/venv /opt/venv
+COPY --from=panel-build /out/vendor /opt/panel/vendor
+COPY --from=panel-build /out/novnc /opt/panel/web/novnc
 
 COPY rootfs /
-RUN rm -rf /opt/gate/tests /opt/gate/conftest.py \
+RUN rm -rf /opt/gate/tests /opt/gate/conftest.py /opt/panel/tests /opt/panel/conftest.py \
  && find /etc/s6-overlay/s6-rc.d -type f \( -name run -o -name finish -o -name up \) -exec chmod a+x {} \; \
  && find /etc/s6-overlay/s6-rc.d -type f -name type -exec chmod 644 {} \;
 

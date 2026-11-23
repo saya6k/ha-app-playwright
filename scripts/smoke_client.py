@@ -5,12 +5,14 @@ Every tool call mimics Home Assistant's MCP client: a fresh session
 single upstream session.
 """
 
+import base64
 import glob
 import http.client
 import json
 import os
 import re
-import signal
+import subprocess
+import socket
 import sys
 import time
 import urllib.request
@@ -44,15 +46,20 @@ class Session:
         resp = conn.getresponse()
         self.sid = resp.getheader("mcp-session-id") or self.sid
         events = []
+        if "text/event-stream" not in (resp.getheader("Content-Type") or ""):
+            # Plain JSON or an empty 202 — read by Content-Length, never past it
+            # (the connection is keep-alive, so reading lines would block).
+            body = resp.read().decode().strip()
+            if body:
+                events.append(json.loads(body))
+            conn.close()
+            return events
         while line := resp.fp.readline():
             line = line.decode().strip()
             if line.startswith("data:"):
                 events.append(json.loads(line[5:]))
-                if events[-1].get("id") == msg.get("id") and not notify:
+                if events[-1].get("id") == msg.get("id"):
                     break
-            elif line.startswith("{"):
-                events.append(json.loads(line))
-                break
         conn.close()
         return events
 
@@ -99,6 +106,73 @@ def evaluate(fn):
 def user_opens_tab(path):
     urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:9222/json/new?{SITE}{path}", method="PUT"))
     time.sleep(1.5)
+
+
+PANEL = "127.0.0.1"
+
+
+def panel_request(method, path, host=PANEL, headers=None):
+    conn = http.client.HTTPConnection(host, 8098, timeout=20)
+    try:
+        conn.request(method, path, headers=headers or {})
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode(errors="replace")
+    finally:
+        conn.close()
+
+
+def rfb_greeting():
+    """WebSocket handshake to the panel, then read the VNC server greeting."""
+    s = socket.create_connection((PANEL, 8098), 5)
+    key = base64.b64encode(os.urandom(16)).decode()
+    s.sendall((f"GET /websockify HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+               f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+               f"Sec-WebSocket-Protocol: binary\r\n\r\n").encode())
+    buf = b""
+    while b"\r\n\r\n" not in buf:
+        buf += s.recv(4096)
+    head, rest = buf.split(b"\r\n\r\n", 1)
+    while len(rest) < 2:
+        rest += s.recv(4096)
+    length = rest[1] & 0x7F
+    payload = rest[2:]
+    while len(payload) < length:
+        payload += s.recv(4096)
+    s.close()
+    return head.split(b"\r\n")[0].decode(), payload[:length].decode(errors="replace")
+
+
+def panel_checks():
+    code, body = panel_request("GET", "/")
+    check("panel page served", code == 200 and "novnc/core/rfb.js" in body, str(code))
+    code, _ = panel_request("GET", "/novnc/core/rfb.js")
+    check("noVNC module served", code == 200, str(code))
+    status, greeting = rfb_greeting()
+    check("panel websocket reaches VNC", "101" in status and greeting.startswith("RFB"), f"{status} {greeting!r}")
+    code, body = panel_request("GET", "/api/status")
+    st = json.loads(body) if code == 200 else {}
+    check("panel status shows Chromium and tabs", st.get("chromium") is True and len(st.get("tabs", [])) >= 1, body)
+
+    own_ip = socket.gethostbyname(socket.gethostname())
+    try:
+        code, _ = panel_request("GET", "/api/status", host=own_ip)
+    except OSError as e:
+        code = repr(e)
+    check("panel refuses clients other than the Ingress gateway", code == 403, f"from {own_ip}: {code}")
+
+    code, _ = panel_request("POST", "/api/reset-profile")
+    check("reset without CSRF header refused", code == 403, str(code))
+    code, body = panel_request("POST", "/api/reset-profile", headers={"X-Requested-With": "browser-panel"})
+    check("reset with CSRF header accepted", code == 200 and '"reset": true' in body, f"{code} {body}")
+    for _ in range(30):
+        if json.loads(panel_request("GET", "/api/status")[1]).get("chromium"):
+            break
+        time.sleep(1)
+    for _ in range(3):
+        if call("browser_navigate", {"url": f"{SITE}/whoami"})[0]:
+            break
+    check("reset deleted the login cookie", "COOKIE:" in (t := evaluate("() => document.body.innerText"))
+          and "session=alice" not in t, t[-80:])
 
 
 def main():
@@ -151,17 +225,15 @@ def main():
     check("large result truncated with a hint", ok and len(text) < 12500 and "Truncated by the add-on" in text,
           f"len={len(text)}")
 
-    for pid in [p.split("/")[2] for p in glob.glob("/proc/[0-9]*/comm")]:
-        try:
-            if open(f"/proc/{pid}/comm").read().strip() in ("chromium", "chromium-browser"):
-                os.kill(int(pid), signal.SIGTERM)
-        except (OSError, ValueError):
-            pass
+    # Restart through s6, as an app stop or update does.
+    subprocess.run(["/command/s6-svc", "-r", "/run/service/chromium"], check=False)
     time.sleep(5)
     results = [call("browser_navigate", {"url": f"{SITE}/whoami"}) for _ in range(3)]
     oks = [r[0] for r in results]
     check("recovers after Chromium restart", oks[-1], " / ".join(r[1][:120] for r in results))
     check("login cookie kept across Chromium restart", "session=alice" in evaluate("() => document.body.innerText"))
+
+    panel_checks()
 
     print(f"\n{len(FAILED)} failed" if FAILED else "\nsmoke OK")
     sys.exit(1 if FAILED else 0)

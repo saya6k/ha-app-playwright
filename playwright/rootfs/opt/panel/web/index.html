@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser</title>
+<style>
+  :root { --bg: #fafafa; --fg: #1c1c1c; --muted: #6b6b6b; --bar: #ffffff; --line: #e0e0e0;
+          --ok: #2e7d32; --bad: #c62828; --btn: #f0f0f0; --accent: #03a9f4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111111; --fg: #e6e6e6; --muted: #9a9a9a; --bar: #1c1c1c; --line: #2c2c2c;
+            --ok: #66bb6a; --bad: #ef5350; --btn: #2a2a2a; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+               font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px;
+           background: var(--bar); border-bottom: 1px solid var(--line); }
+  #dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  #dot.ok { background: var(--ok); } #dot.bad { background: var(--bad); }
+  #page { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #page small { color: var(--muted); }
+  form { display: flex; gap: 6px; flex: 1 1 260px; }
+  input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+          background: var(--bg); color: var(--fg); }
+  button { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--btn);
+           color: var(--fg); cursor: pointer; white-space: nowrap; }
+  button.danger.armed { border-color: var(--bad); color: var(--bad); }
+  #msg { color: var(--muted); font-size: 12px; width: 100%; min-height: 1em; }
+  #screen { flex: 1; min-height: 0; background: #000; }
+</style>
+</head>
+<body>
+<header>
+  <span id="dot" title="Chromium status"></span>
+  <span id="page">Connecting…</span>
+  <form id="paste">
+    <input id="text" autocomplete="off" placeholder="Text to paste (Korean, passwords…)" aria-label="Text to paste">
+    <button type="submit">Copy to browser</button>
+  </form>
+  <button id="reconnect" type="button">Reconnect</button>
+  <button id="reset" class="danger" type="button">Reset profile</button>
+  <div id="msg" role="status"></div>
+</header>
+<div id="screen"></div>
+<script type="module">
+import RFB from './novnc/core/rfb.js';
+
+const $ = (id) => document.getElementById(id);
+const say = (text) => { $('msg').textContent = text; };
+let rfb = null;
+let retry = null;
+
+function wsUrl() {
+  // Relative to the page so it works under the Ingress path prefix.
+  const url = new URL('websockify', location.href);
+  url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return url.href;
+}
+
+function connect() {
+  clearTimeout(retry);
+  if (rfb) { rfb.disconnect(); }
+  rfb = new RFB($('screen'), wsUrl(), { shared: true });
+  rfb.scaleViewport = true;
+  rfb.resizeSession = false;
+  rfb.focusOnClick = true;
+  rfb.addEventListener('connect', () => say('Connected. Click the screen to type; use the box above for Korean text or passwords.'));
+  rfb.addEventListener('disconnect', () => { say('Disconnected — retrying…'); retry = setTimeout(connect, 2000); });
+}
+
+async function refreshStatus() {
+  try {
+    const res = await fetch('api/status', { cache: 'no-store' });
+    const s = await res.json();
+    $('dot').className = s.chromium ? 'ok' : 'bad';
+    const page = $('page');
+    page.textContent = '';
+    if (!s.chromium) { page.textContent = 'Chromium is not running'; return; }
+    const first = s.tabs[0] || { title: '', url: '' };
+    page.append(first.title || first.url || 'about:blank');
+    const extra = document.createElement('small');
+    extra.textContent = s.tabs.length > 1 ? `  (+${s.tabs.length - 1} tabs)` : '';
+    page.append(extra);
+  } catch {
+    $('dot').className = 'bad';
+  }
+}
+
+$('paste').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = $('text').value;
+  if (!rfb || !text) { return; }
+  rfb.clipboardPasteFrom(text);
+  $('text').value = '';
+  say('Copied to the browser clipboard — click the field in the page and press Ctrl+V.');
+});
+
+$('reconnect').addEventListener('click', connect);
+
+let armed = null;
+$('reset').addEventListener('click', async () => {
+  const btn = $('reset');
+  if (!armed) {
+    btn.classList.add('armed');
+    btn.textContent = 'Click again to delete all logins';
+    armed = setTimeout(() => { armed = null; btn.classList.remove('armed'); btn.textContent = 'Reset profile'; }, 5000);
+    return;
+  }
+  clearTimeout(armed); armed = null;
+  btn.classList.remove('armed'); btn.textContent = 'Reset profile';
+  say('Resetting the browser profile…');
+  try {
+    const res = await fetch('api/reset-profile', { method: 'POST', headers: { 'X-Requested-With': 'browser-panel' } });
+    say(res.ok ? 'Profile reset: all cookies and logins were deleted.' : `Reset failed (${res.status}).`);
+  } catch {
+    say('Reset failed.');
+  }
+  setTimeout(connect, 1500);
+});
+
+connect();
+refreshStatus();
+setInterval(refreshStatus, 3000);
+</script>
+</body>
+</html>

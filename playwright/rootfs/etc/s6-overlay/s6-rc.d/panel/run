@@ -1,0 +1,7 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+# Ingress panel on :8098 — only the Ingress gateway and loopback may connect.
+set -euo pipefail
+
+echo "[panel] starting on 0.0.0.0:8098 …"
+exec env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN python3 /opt/panel/server.py
