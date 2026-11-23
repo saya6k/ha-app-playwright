@@ -33,6 +33,7 @@ options:
   allowed_origins: []
   blocked_origins: []
   browser_language: en-US
+  font_languages: []
   viewport: 1280x800
 schema:
   allowed_origins:
@@ -40,5 +41,7 @@ schema:
   blocked_origins:
     - str?
   browser_language: match(^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$)
+  font_languages:
+    - list(ja|ko|zh-hans|zh-hant)?
   outgoing_proxy: str?
   viewport: match(^[0-9]{3,4}x[0-9]{3,4}$)

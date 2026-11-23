@@ -37,5 +37,8 @@ done
 docker exec -d "$NAME" python3 /smoke/site.py
 sleep 1
 docker exec "$NAME" python3 /smoke/smoke_client.py
+if [ -n "${SMOKE_OUT:-}" ]; then
+  docker cp "$NAME:/share/playwright/ko.png" "${SMOKE_OUT}/ko.png" >/dev/null && echo "copied ko.png to ${SMOKE_OUT}"
+fi
 
 echo "image size: $(docker image inspect "$IMAGE" --format '{{.Size}}' | awk '{printf "%.0f MB", $1/1000000}')"

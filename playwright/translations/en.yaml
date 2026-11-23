@@ -16,6 +16,13 @@ configuration:
     description: >-
       Language Chromium uses for its UI and sends to sites in
       Accept-Language, e.g. en-US or ko-KR.
+  font_languages:
+    name: Extra font languages
+    description: >-
+      Downloads Noto Sans CJK fonts for these languages at start (about
+      9-17 MB each, kept in the app's data). Without them, pages in
+      these scripts show empty boxes. Removing a language deletes its
+      fonts.
   outgoing_proxy:
     name: Outgoing proxy
     description: >-

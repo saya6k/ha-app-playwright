@@ -1,0 +1,5 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+# Installs the CJK fonts chosen in font_languages into /data/fonts before
+# Chromium starts. Never fails the app: a missing font only shows boxes.
+exec env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN python3 /opt/fonts/install.py || true

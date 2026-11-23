@@ -175,7 +175,16 @@ def panel_checks():
           and "session=alice" not in t, t[-80:])
 
 
+def font_checks():
+    fonts = sorted(os.listdir("/data/fonts")) if os.path.isdir("/data/fonts") else []
+    check("Korean fonts installed from font_languages", fonts == ["NotoSansKR-Bold.otf", "NotoSansKR-Regular.otf"],
+          str(fonts))
+    match = subprocess.run(["fc-match", "sans-serif:lang=ko"], capture_output=True, text=True).stdout
+    check("fontconfig picks Noto Sans KR for Korean", '"Noto Sans KR"' in match, match.strip())
+
+
 def main():
+    font_checks()
     os.makedirs(os.path.dirname(CSV), exist_ok=True)
     with open(CSV, "w") as f:
         f.write("a,b\n1,2\n")
@@ -219,6 +228,10 @@ def main():
     check("no image content in results", ok and "image" not in kinds, str(kinds))
     check("screenshot is not blank", os.path.getsize("/share/playwright/evil.png") > 5000
           if os.path.exists("/share/playwright/evil.png") else False)
+
+    call("browser_navigate", {"url": f"{SITE}/ko"})
+    ok, *_ = call("browser_take_screenshot", {"filename": "ko.png"})
+    check("Korean page screenshot saved", ok and os.path.exists("/share/playwright/ko.png"))
 
     call("browser_navigate", {"url": f"{SITE}/big"})
     ok, text, *_ = call("browser_snapshot", {"depth": 50})

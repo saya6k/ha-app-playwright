@@ -52,6 +52,7 @@ COPY --from=panel-build /out/novnc /opt/panel/web/novnc
 
 COPY rootfs /
 RUN rm -rf /opt/gate/tests /opt/gate/conftest.py /opt/panel/tests /opt/panel/conftest.py \
+    /opt/fonts/tests /opt/fonts/conftest.py \
  && find /etc/s6-overlay/s6-rc.d -type f \( -name run -o -name finish -o -name up \) -exec chmod a+x {} \; \
  && find /etc/s6-overlay/s6-rc.d -type f -name type -exec chmod 644 {} \;
 

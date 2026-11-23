@@ -2,5 +2,6 @@
   "allowed_origins": [],
   "blocked_origins": [],
   "browser_language": "en-US",
+  "font_languages": ["ko"],
   "viewport": "1280x800"
 }

@@ -35,6 +35,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if url.path == "/result":
             q = urllib.parse.parse_qs(url.query).get("q", [""])[0]
             return self._send(f"<title>Result</title><p id=r>RESULT:{q}</p>")
+        if url.path == "/ko":
+            return self._send('<title>한글</title><h1 style="font-family:sans-serif">한글 렌더링 확인</h1>'
+                              '<p style="font-family:sans-serif;font-size:24px">다람쥐 헌 쳇바퀴에 타고파 — <b>굵게</b></p>')
         if url.path == "/big":
             items = "".join(f'<li><a href="/item/{i}">Item number {i}</a></li>' for i in range(3000))
             return self._send(f"<title>Big</title><ul>{items}</ul>")
