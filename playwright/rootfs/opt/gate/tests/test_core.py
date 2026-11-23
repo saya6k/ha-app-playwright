@@ -55,6 +55,18 @@ def test_list_tools_passthrough_and_snapshot_note():
     assert "depth" in snap.description
 
 
+def test_snapshot_note_starts_a_new_sentence():
+    up = FakeUpstream()
+
+    async def tools():
+        return [types.Tool(name="browser_snapshot", description="this is better than screenshot",
+                           inputSchema={"type": "object"})]
+
+    up.list_tools = tools
+    desc = run(Gate(up).list_tools())[0].description
+    assert desc.startswith("this is better than screenshot. This add-on applies depth=6")
+
+
 def test_single_tab_skips_select():
     up = FakeUpstream()
     run(Gate(up).call("browser_click", {"target": "e1"}, no_notify))

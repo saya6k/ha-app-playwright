@@ -37,7 +37,10 @@ class Gate:
         tools = []
         for tool in await self.upstream.list_tools():
             if tool.name == "browser_snapshot":
-                tool = tool.model_copy(update={"description": (tool.description or "") + SNAPSHOT_NOTE})
+                desc = (tool.description or "").rstrip()
+                if desc and desc[-1] not in ".!?":
+                    desc += "."  # upstream ends this description without a period
+                tool = tool.model_copy(update={"description": desc + SNAPSHOT_NOTE})
             tools.append(tool)
         return tools
 
