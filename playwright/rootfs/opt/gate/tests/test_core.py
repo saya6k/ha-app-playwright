@@ -17,9 +17,13 @@ class FakeUpstream:
         self.tabs = tabs
         self.delay = delay
         self.die_next = False
+        self.list_dies_next = False
         self.restarts = 0
 
     async def list_tools(self):
+        if self.list_dies_next:
+            self.list_dies_next = False
+            raise UpstreamDied("child exited")
         return [
             types.Tool(name="browser_snapshot", description="Capture snapshot.", inputSchema={"type": "object"}),
             types.Tool(name="browser_click", description="Click.", inputSchema={"type": "object"}),
@@ -53,6 +57,15 @@ def test_list_tools_passthrough_and_snapshot_note():
     snap = tools[0]
     assert snap.description.startswith("Capture snapshot.")
     assert "depth" in snap.description
+
+
+def test_list_tools_restarts_dead_upstream():
+    # HA lists tools before it ever calls one: a dead upstream must recover here too.
+    up = FakeUpstream()
+    up.list_dies_next = True
+    tools = run(Gate(up).list_tools())
+    assert up.restarts == 1
+    assert [t.name for t in tools] == ["browser_snapshot", "browser_click"]
 
 
 def test_snapshot_note_starts_a_new_sentence():

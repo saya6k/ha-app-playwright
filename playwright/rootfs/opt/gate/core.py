@@ -34,8 +34,17 @@ class Gate:
         self._lock = asyncio.Lock()
 
     async def list_tools(self) -> list[types.Tool]:
+        try:
+            upstream_tools = await self.upstream.list_tools()
+        except UpstreamDied as e:
+            # Home Assistant lists tools before calling one; without a restart
+            # here a dead upstream would never get a call that restarts it.
+            log.warning("[gate] tools/list: upstream died (%s)", e)
+            async with self._lock:
+                await self.upstream.restart()
+            upstream_tools = await self.upstream.list_tools()
         tools = []
-        for tool in await self.upstream.list_tools():
+        for tool in upstream_tools:
             if tool.name == "browser_snapshot":
                 desc = (tool.description or "").rstrip()
                 if desc and desc[-1] not in ".!?":
