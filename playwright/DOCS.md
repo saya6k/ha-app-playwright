@@ -124,6 +124,7 @@ The apps work on their own and also complement each other:
 | `blocked_origins` | empty | Origins the browser must not load. Checked before `allowed_origins`; same caveat |
 | `browser_language` | `en-US` | Chromium's language and the `Accept-Language` sent to sites, e.g. `ko-KR` |
 | `font_languages` | empty | Download Noto Sans fonts for `ja`, `ko`, `zh-hans`, `zh-hant` at start (about 9–17 MB each, kept in the app's data). Without them, text in these scripts shows as empty boxes. Removing a language deletes its fonts |
+| `idle_reset_minutes` | `5` | After this many minutes without a browser tool call, the next call first closes every tab but one and blanks it, so a new conversation starts clean (Home Assistant ends a conversation after 5 idle minutes and sends no conversation id). Logins are kept. `0` turns it off |
 | `outgoing_proxy` | empty | Proxy for all browser traffic, e.g. `http://10.0.0.2:3128` or `socks5://10.0.0.2:1080` |
 | `viewport` | `1280x800` | Browser window size; screenshots of the visible area use it |
 

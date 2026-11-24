@@ -23,6 +23,12 @@ configuration:
       9-17 MB each, kept in the app's data). Without them, pages in
       these scripts show empty boxes. Removing a language deletes its
       fonts.
+  idle_reset_minutes:
+    name: Reset tabs after idle (minutes)
+    description: >-
+      After this many minutes without a browser tool call, the next call
+      first closes every tab but one and blanks it, so a new conversation
+      starts clean. Logins are kept. 0 turns it off.
   outgoing_proxy:
     name: Outgoing proxy
     description: >-

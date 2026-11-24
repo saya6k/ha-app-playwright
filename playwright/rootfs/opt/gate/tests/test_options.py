@@ -33,3 +33,12 @@ def test_child_env_strips_supervisor_token():
     assert "SUPERVISOR_TOKEN" not in env and "HASSIO_TOKEN" not in env
     assert env["PATH"] == "/usr/bin"
     assert env["PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD"] == "1"
+
+
+def test_idle_reset_minutes(tmp_path):
+    assert options.idle_reset_seconds(options.load(tmp_path / "missing.json")) == 300
+    path = tmp_path / "options.json"
+    path.write_text(json.dumps({"idle_reset_minutes": 0}))
+    assert options.idle_reset_seconds(options.load(path)) is None
+    path.write_text(json.dumps({"idle_reset_minutes": 10}))
+    assert options.idle_reset_seconds(options.load(path)) == 600

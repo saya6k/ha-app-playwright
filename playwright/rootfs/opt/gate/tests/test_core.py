@@ -207,3 +207,53 @@ def test_upstream_error_result_passes_through(tool):
     up.call_tool = err
     res = run(Gate(up).call(tool, {}, no_notify))
     assert res.isError and "boom" in res.content[0].text
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def idle_gate(up, clock, idle_s=300):
+    return Gate(up, idle_reset_s=idle_s, clock=clock)
+
+
+def test_idle_reset_closes_extra_tabs_and_blanks_first():
+    up = FakeUpstream(tabs="### Result\n- 0: [U](http://u/)\n- 1: [V](http://v/)\n- 2: (current) [A](http://a/)\n")
+    clock = Clock()
+    gate = idle_gate(up, clock)
+    run(gate.call("browser_navigate", {"url": "http://x/"}, no_notify))
+    up.calls.clear()
+    clock.now += 300
+    res = run(gate.call("browser_navigate", {"url": "http://y/"}, no_notify))
+    assert up.calls == [
+        ("browser_tabs", {"action": "list"}),
+        ("browser_tabs", {"action": "close", "index": 2}),
+        ("browser_tabs", {"action": "close", "index": 1}),
+        ("browser_navigate", {"url": "about:blank"}),
+        ("browser_navigate", {"url": "http://y/"}),
+    ]
+    assert "idle" in res.content[0].text and "ran browser_navigate" in res.content[-1].text
+
+
+def test_no_reset_within_idle_window_or_on_first_call():
+    up = FakeUpstream()
+    clock = Clock()
+    gate = idle_gate(up, clock)
+    run(gate.call("browser_navigate", {"url": "http://x/"}, no_notify))
+    clock.now += 299
+    run(gate.call("browser_navigate", {"url": "http://y/"}, no_notify))
+    assert [c for c in up.calls if c[0] == "browser_tabs"] == []
+
+
+def test_idle_reset_disabled():
+    up = FakeUpstream()
+    clock = Clock()
+    gate = Gate(up, idle_reset_s=None, clock=clock)
+    run(gate.call("browser_navigate", {"url": "http://x/"}, no_notify))
+    clock.now += 10_000
+    run(gate.call("browser_navigate", {"url": "http://y/"}, no_notify))
+    assert up.calls == [("browser_navigate", {"url": "http://x/"}), ("browser_navigate", {"url": "http://y/"})]
