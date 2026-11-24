@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import logging
+import time
 
 import mcp.types as types
 
@@ -16,6 +17,8 @@ SNAPSHOT_NOTE = (f" This add-on applies depth={rewrite.SNAPSHOT_DEFAULT_DEPTH} w
                  "pass a larger depth or a target ref to see deeper parts of the page.")
 RESTARTED = ("browser_restarted: the browser automation process restarted and the tab state is lost. "
              "Call browser_navigate again before other browser tools.")
+IDLE_RESET = ("The browser was idle, so the add-on closed the earlier tabs and blanked the first one "
+              "before this call; refs and pages from before are gone.")
 
 
 def _error(text: str) -> types.CallToolResult:
@@ -27,10 +30,16 @@ def _text(result: types.CallToolResult) -> str:
 
 
 class Gate:
-    def __init__(self, upstream, *, max_chars: int = MAX_CHARS, heartbeat_s: float = HEARTBEAT_S):
+    def __init__(self, upstream, *, max_chars: int = MAX_CHARS, heartbeat_s: float = HEARTBEAT_S,
+                 idle_reset_s: float | None = None, clock=time.monotonic):
         self.upstream = upstream
         self.max_chars = max_chars
         self.heartbeat_s = heartbeat_s
+        # Home Assistant sends no conversation id, so a long pause stands in
+        # for "a new conversation started": its sessions expire after 5 minutes.
+        self.idle_reset_s = idle_reset_s
+        self.clock = clock
+        self._last_call: float | None = None
         self._lock = asyncio.Lock()
 
     async def list_tools(self) -> list[types.Tool]:
@@ -71,7 +80,11 @@ class Gate:
 
     async def _call_locked(self, name: str, args: dict) -> types.CallToolResult:
         async with self._lock:
+            reset = (self.idle_reset_s is not None and self._last_call is not None
+                     and self.clock() - self._last_call >= self.idle_reset_s)
             try:
+                if reset:
+                    await self._reset_tabs()
                 if rewrite.needs_front(name):
                     await self._bring_current_tab_to_front()
                 result = await self.upstream.call_tool(name, rewrite.rewrite_args(name, args))
@@ -79,7 +92,21 @@ class Gate:
                 log.warning("[gate] %s: upstream died (%s)", name, e)
                 await self.upstream.restart()
                 return _error(RESTARTED)
+            finally:
+                self._last_call = self.clock()
+        if reset:
+            result = result.model_copy(update={
+                "content": [types.TextContent(type="text", text=IDLE_RESET), *result.content]})
         return self._shape(result)
+
+    async def _reset_tabs(self) -> None:
+        # Best effort: a failed close or blank (e.g. a pending dialog) still lets the call run.
+        log.info("[gate] idle for %ss: resetting tabs", self.idle_reset_s)
+        listing = await self.upstream.call_tool("browser_tabs", {"action": "list"})
+        _, count = rewrite.parse_tabs(_text(listing))
+        for index in range(count - 1, 0, -1):
+            await self.upstream.call_tool("browser_tabs", {"action": "close", "index": index})
+        await self.upstream.call_tool("browser_navigate", {"url": "about:blank"})
 
     async def _bring_current_tab_to_front(self) -> None:
         listing = await self.upstream.call_tool("browser_tabs", {"action": "list"})

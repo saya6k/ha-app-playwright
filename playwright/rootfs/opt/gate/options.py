@@ -7,7 +7,7 @@ OPTIONS_PATH = Path("/data/options.json")
 CLI = "/opt/playwright-mcp/node_modules/@playwright/mcp/cli.js"
 CDP_ENDPOINT = "http://127.0.0.1:9222"
 OUTPUT_DIR = "/share/playwright"
-DEFAULTS = {"allowed_origins": [], "blocked_origins": []}
+DEFAULTS = {"allowed_origins": [], "blocked_origins": [], "idle_reset_minutes": 5}
 
 
 def load(path: Path = OPTIONS_PATH) -> dict:
@@ -29,6 +29,12 @@ def upstream_argv(opts: dict) -> list[str]:
         if joined := _origins(opts.get(key)):
             argv += [flag, joined]
     return argv
+
+
+def idle_reset_seconds(opts: dict) -> float | None:
+    """Idle time after which the gate resets the tabs; None turns it off."""
+    minutes = opts.get("idle_reset_minutes")
+    return minutes * 60 if isinstance(minutes, int) and minutes > 0 else None
 
 
 def child_env(env: dict) -> dict:

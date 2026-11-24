@@ -30,7 +30,7 @@ log = logging.getLogger("gate")
 opts = options.load()
 upstream = StdioUpstream(StdioServerParameters(
     command="node", args=options.upstream_argv(opts), cwd="/share", env=options.child_env(dict(os.environ))))
-gate = Gate(upstream)
+gate = Gate(upstream, idle_reset_s=options.idle_reset_seconds(opts))
 server = Server("Browser")
 
 
