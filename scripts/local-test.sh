@@ -1,7 +1,7 @@
 #!/bin/sh
-# Local build + smoke on the linux-test container machine (one machine run at a time):
-#   container machine run --root -n linux-test -- sh /Users/saya6k/Projects/ha-app-playwright/scripts/linux-test.sh
-# linux-test is shared with other projects: only the previous app-playwright:dev
+# Local build + smoke with the Mac's docker (socktainer on Apple container):
+#   sh /Users/saya6k/Projects/ha-app-playwright/scripts/local-test.sh
+# The image store is shared with other projects: only the previous app-playwright:dev
 # image is removed, by its exact ID — never prune or dangling filters.
 cd /Users/saya6k/Projects/ha-app-playwright || exit 1
 OLD=$(docker image inspect app-playwright:dev -f '{{.Id}}' 2>/dev/null)
